@@ -4,7 +4,7 @@ const { TABLE_NAME } = require('./schemaEngine');
 
 // CONFIGURATION
 // 🔴 REPLACE THIS with your Google Apps Script Web App URL
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyw8iVtgCK0on4W5YBgM78o1SayGg25fI2BThYu5-XVMynllOX5za4YBhcg3DPIwykeZQ/exec'; 
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwckZy_YZSm7oN2OsB9PdeRp75SmHDnVwqgYLIKiaZ6z56shcuuK8zGPfwPv4x80BCsxg/exec'; 
 
 // State: Track the last time we synced
 let lastSyncTime = new Date();
