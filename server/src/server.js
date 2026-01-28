@@ -23,13 +23,7 @@ const startServer = async () => {
   try {
     await connectDB(); 
     startPolling();
-    // --- TEMPORARY TEST BLOCK ---
-    const { syncSchema } = require('./services/schemaEngine');
-    console.log("🧪 Testing Schema Engine...");
     
-    // Simulate fetching headers from Google Sheets
-    const mockHeaders = ['id', 'Name', 'Email Address', 'Status'];
-    await syncSchema(mockHeaders);
     app.use('/api/sync', syncRoutes);
     // ----------------------------
     app.listen(PORT, () => {
