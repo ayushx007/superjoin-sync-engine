@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const { connectDB } = require('./config/db')
 const syncRoutes = require('./routes/syncRoutes');
+const { startPolling } = require('./services/pollingService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,7 @@ app.get('/health', (req, res) => {
 const startServer = async () => {
   try {
     await connectDB(); 
+    startPolling();
     // --- TEMPORARY TEST BLOCK ---
     const { syncSchema } = require('./services/schemaEngine');
     console.log("🧪 Testing Schema Engine...");
