@@ -10,46 +10,41 @@ const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx6FFQUOoUKe8
 let lastSyncTime = new Date();
 
 const pollDatabase = async () => {
-    try {
-        // 1. Find rows updated recently
-        // We use a raw query because it's faster and safer than reloading models
-        const query = `
-      SELECT * FROM ${TABLE_NAME} 
-      WHERE updatedAt > :lastTime
-    `;
+  try {
+    const query = `SELECT * FROM ${TABLE_NAME} WHERE updatedAt > :lastTime`;
+    const updates = await sequelize.query(query, {
+      replacements: { lastTime: lastSyncTime },
+      type: sequelize.QueryTypes.SELECT
+    });
 
-        const updates = await sequelize.query(query, {
-            replacements: { lastTime: lastSyncTime },
-            type: sequelize.QueryTypes.SELECT
-        });
-
-        if (updates.length > 0) {
-            console.log(`Changes detected in DB: ${updates.length} rows.`);
-
-            // 2. Push to Google Sheet
-            // The payload structure matches what our GAS doPost expects
-            await axios.post(GOOGLE_SCRIPT_URL, { updates });
-
-            console.log('⬆️ Pushed updates to Google Sheet');
-
-            // 3. Update Sync Time
-            // Set it to "now" so we only catch new changes next time
-            lastSyncTime = new Date();
-        }
-    } catch (error) {
-        // Ignore "Network Error" if Google is sleepy, but log others
-        if (error.response) {
-            console.error('❌ Google Script Error:', error.response.data);
-        } else {
-            console.error('⚠️ Polling Check Failed:', error.message);
-        }
+    if (updates.length > 0) {
+      console.log(`Changes detected: ${updates.length} rows.`);
+      
+      // 🕵️‍♂️ DEBUGGING THE RESPONSE
+      const response = await axios.post(GOOGLE_SCRIPT_URL, { updates }, {
+        headers: { 'Content-Type': 'application/json' },
+        maxRedirects: 5
+      });
+      
+      // 🔴 THIS LOG WILL REVEAL THE TRUTH
+      console.log('📬 Google Response:', typeof response.data === 'object' ? JSON.stringify(response.data) : response.data);
+      
+      lastSyncTime = new Date();
     }
+  } catch (error) {
+    if (error.response) {
+      // Log the full HTML if Google sends an error page
+      console.error('❌ Google Error Status:', error.response.status);
+      console.error('❌ Google Error Body:', error.response.data);
+    } else {
+      console.error('⚠️ Polling Error:', error.message);
+    }
+  }
 };
 
-// Start Polling (Every 10 seconds)
 const startPolling = () => {
-    console.log('⏳ Database Polling Started...');
-    setInterval(pollDatabase, 10000);
+  console.log('⏳ Polling Started...');
+  setInterval(pollDatabase, 10000);
 };
 
 module.exports = { startPolling };
