@@ -4,6 +4,9 @@ exports.syncSheetToDB = async (req, res) => {
   try {
     const { headers, row } = req.body;
 
+    const result = await syncService.handleSync(headers, row);
+    res.status(200).json(result); // Send back { status: 'created', id: '...' }
+
     // 1. Basic Validation
     if (!headers || !row) {
       return res.status(400).json({ error: 'Missing headers or row data' });

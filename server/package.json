@@ -18,7 +18,8 @@
     "express": "^5.2.1",
     "ioredis": "^5.9.2",
     "mysql2": "^3.16.2",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

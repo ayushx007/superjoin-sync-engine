@@ -1,33 +1,41 @@
-const { syncSchema, TABLE_NAME } = require('./schemaEngine');
+const { syncSchema } = require('./schemaEngine');
+const { v4: uuidv4 } = require('uuid'); // You might need to install: npm install uuid
 
-/**
- * Service to handle incoming data sync
- * @param {Array} headers - List of column names
- * @param {Object} rowData - The actual data { id: 1, name: 'Ayush' }
- */
 const handleSync = async (headers, rowData) => {
   try {
-    // 1. Ensure Schema Exists (The "Magic" Engine)
-    // We await this to ensure columns exist before we try to write data
     const DynamicModel = await syncSchema(headers);
-
-    // 2. Prepare Data
-    // We need to map "Email Address" (JSON) -> "email_address" (DB Column)
+    
+    // Prepare the DB Row
     const dbRow = {};
     headers.forEach(h => {
       const cleanHeader = h.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-      // match the incoming row data to the clean column name
-      // Note: We handle the case where rowData keys might be raw or clean
-      dbRow[cleanHeader] = rowData[h] || rowData[cleanHeader] || null;
+      dbRow[cleanHeader] = rowData[h];
     });
 
-    // 3. The "Upsert" (Insert or Update)
-    // If ID exists, Update. If not, Insert.
-    // This is crucial for "Idempotency" (Running it twice won't duplicate data)
-    await DynamicModel.upsert(dbRow);
+    // CHECK: Does the incoming data have our Ghost ID?
+    // In the sheet, we will look for a header named 'superjoin_id'
+    const incomingId = rowData['superjoin_id'];
 
-    console.log(`✅ Synced Row: ${JSON.stringify(dbRow)}`);
-    return { success: true };
+    if (incomingId) {
+      // CASE 1: UPDATE
+      // We rely on the Ghost ID to find the record
+      await DynamicModel.update(dbRow, {
+        where: { superjoin_id: incomingId }
+      });
+      console.log(`✅ Updated Row: ${incomingId}`);
+      return { status: 'updated', id: incomingId };
+    } else {
+      // CASE 2: INSERT
+      // Generate a new UUID
+      const newId = uuidv4();
+      dbRow['superjoin_id'] = newId;
+      
+      await DynamicModel.create(dbRow);
+      console.log(`✅ Created New Row: ${newId}`);
+      
+      // CRITICAL: Return the new ID so the Sheet can save it
+      return { status: 'created', id: newId };
+    }
 
   } catch (error) {
     console.error('❌ Sync Error:', error);
