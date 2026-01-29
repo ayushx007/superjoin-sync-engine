@@ -46,7 +46,7 @@ export function SyncDashboard() {
   try {
     // 1. Call the Backend API
     // Ensure your API_URL points to your Render/Local backend
-    const response = await fetch(`${API_URL}/rows/${superjoin_id}`, {
+    const response = await fetch(`${API_URL}/api/sync/rows/${superjoin_id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
