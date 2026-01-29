@@ -1,41 +1,41 @@
 const express = require('express');
 const router = express.Router();
 const syncController = require('../controllers/syncController');
+const { sequelize } = require('../config/db');
+const { TABLE_NAME } = require('../services/schemaEngine');
 
-// POST /api/sync/webhook
+// 1. WEBHOOK: Sheet -> DB (Existing)
 router.post('/webhook', syncController.syncSheetToDB);
+
+// 2. DASHBOARD DATA: Fetch all rows for the UI
+router.get('/data', async (req, res) => {
+  try {
+    const [results] = await sequelize.query(
+      `SELECT * FROM ${TABLE_NAME} ORDER BY createdAt DESC`
+    );
+    res.json(results);
+  } catch (error) {
+    console.error("Dashboard Fetch Error:", error);
+    res.status(500).json([]);
+  }
+});
+
+// 3. INLINE EDIT: Dashboard -> DB
 router.put('/update', async (req, res) => {
   try {
     const { superjoin_id, column, value } = req.body;
-
-    if (!superjoin_id || !column) {
-      return res.status(400).json({ error: "Missing superjoin_id or column" });
-    }
-
-    // Safety: Prevent editing system columns
-    if (['superjoin_id', 'createdAt', 'updatedAt'].includes(column)) {
-      return res.status(403).json({ error: "Cannot edit system columns directly" });
-    }
-
-    // 1. Sanitize the Column Name (Prevent SQL Injection)
-    // We only allow alphanumeric + underscores
+    
+    // Sanitize column name to prevent SQL injection
     const cleanColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
 
-    // 2. Perform the Update
-    // We explicitly set updatedAt = NOW() to trigger the Reverse Sync Poller
     await sequelize.query(
       `UPDATE ${TABLE_NAME} SET ${cleanColumn} = :value, updatedAt = NOW() WHERE superjoin_id = :id`,
-      {
-        replacements: { value: value, id: superjoin_id }
-      }
+      { replacements: { value, id: superjoin_id } }
     );
 
-    console.log(`✏️ Dashboard Edit: Updated ${cleanColumn} to '${value}' for ID ${superjoin_id}`);
-    
-    res.json({ success: true, message: "Update successful" });
-
+    res.json({ success: true });
   } catch (error) {
-    console.error("Update Error:", error);
+    console.error("Dashboard Update Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
