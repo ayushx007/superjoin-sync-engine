@@ -40,53 +40,53 @@ router.put('/update', async (req, res) => {
   }
 });
 
-// ✂️ Prune Endpoint: Deletes Rows/Cols missing from the Sheet
+// ✂️ Prune Endpoint: Enhanced Deletion Logic
 router.post('/prune', async (req, res) => {
   try {
     const { active_ids, active_cols } = req.body;
     
-    console.log(`✂️ Pruning: Retaining ${active_ids.length} rows and ${active_cols.length} columns.`);
+    // 1. DATA SYNC (Rows)
+    // We use a cleaner check for empty sheets
+    const hasActiveRows = Array.isArray(active_ids) && active_ids.length > 0;
 
-    // 1. ROW DELETION LOGIC
-    if (active_ids && active_ids.length > 0) {
-      // Delete any row whose superjoin_id is NOT in the active list
+    if (!hasActiveRows) {
+      console.log("🧹 Sheet data cleared. Truncating table...");
+      await sequelize.query(`DELETE FROM ${TABLE_NAME}`);
+    } else {
+      // ✅ THE FIX: Use standard 'IN' logic with replacements
+      // This ensures Sequelize handles the array of strings correctly
+      console.log(`✂️ Syncing: Keeping ${active_ids.length} rows.`);
       await sequelize.query(
         `DELETE FROM ${TABLE_NAME} WHERE superjoin_id NOT IN (:ids)`,
-        { replacements: { ids: active_ids } }
+        { 
+          replacements: { ids: active_ids },
+          type: sequelize.QueryTypes.DELETE 
+        }
       );
-    } else {
-      // If list is empty, user deleted ALL rows -> Truncate table (keep structure)
-      // Be careful: This deletes ALL data
-      await sequelize.query(`DELETE FROM ${TABLE_NAME}`); 
     }
 
-    // 2. COLUMN DELETION LOGIC (Advanced)
-    // Only run this if you really want to drop columns from DB
-    if (active_cols && active_cols.length > 0) {
-      // Get current DB columns
-      const [columns] = await sequelize.query(`DESCRIBE ${TABLE_NAME}`);
-      const dbColNames = columns.map(c => c.Field);
-      
-      // Standardize sheet headers to DB format
-      const validSheetCols = active_cols.map(c => 
-        c.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')
-      );
-      
-      // Always keep System Columns
-      const systemCols = ['superjoin_id', 'createdat', 'updatedat', 'id']; 
+    // 2. SCHEMA SYNC (Columns)
+    // Standardize headers and handle system columns
+    const [columns] = await sequelize.query(`DESCRIBE ${TABLE_NAME}`);
+    const dbColNames = columns.map(c => c.Field);
+    
+    const validSheetCols = active_cols 
+      ? active_cols.map(c => c.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')) 
+      : [];
+    
+    const systemCols = ['superjoin_id', 'createdat', 'updatedat', 'id']; 
 
-      for (const col of dbColNames) {
-        if (!validSheetCols.includes(col.toLowerCase()) && !systemCols.includes(col.toLowerCase())) {
-          console.log(`🗑️ Dropping Column: ${col}`);
-          await sequelize.query(`ALTER TABLE ${TABLE_NAME} DROP COLUMN ${col}`);
-        }
+    for (const col of dbColNames) {
+      if (!validSheetCols.includes(col.toLowerCase()) && !systemCols.includes(col.toLowerCase())) {
+        console.log(`🔥 Prune: Dropping Column '${col}'`);
+        await sequelize.query(`ALTER TABLE ${TABLE_NAME} DROP COLUMN ${col}`);
       }
     }
 
-    res.json({ success: true, message: "Prune complete" });
+    res.json({ success: true, message: "Sync complete" });
 
   } catch (error) {
-    console.error("Prune Error:", error);
+    console.error("Prune Error Detail:", error);
     res.status(500).json({ error: error.message });
   }
 });
