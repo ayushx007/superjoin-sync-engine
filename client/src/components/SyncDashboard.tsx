@@ -40,6 +40,40 @@ export function SyncDashboard() {
     }
   }, [pausePolling, resumePolling]);
 
+  const API_URL = "https://superjoin-sync-engine.onrender.com";
+
+  const handleDeleteRow = useCallback(async (superjoin_id: string) => {
+  try {
+    // 1. Call the Backend API
+    // Ensure your API_URL points to your Render/Local backend
+    const response = await fetch(`${API_URL}/api/rows/${superjoin_id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to delete row');
+    }
+
+    // 2. Refresh the UI
+    // If you are using a simple fetch/useEffect, you can use window.location.reload()
+    // If you are using a state-based hook, call the refresh function:
+    // refreshData(); 
+    
+    console.log(`✅ Row ${superjoin_id} deleted from DB.`);
+    
+    // Optional: Provide immediate feedback
+    // toast.success("Row deleted. Syncing with Google Sheets...");
+
+  } catch (error) {
+    console.error("❌ Delete Error:", error);
+    alert("Failed to delete row. Please try again.");
+  }
+}, []);
+
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     await refetch();
@@ -134,6 +168,7 @@ export function SyncDashboard() {
               onCellUpdate={handleCellUpdate}
               isPending={isPending}
               onCellFocusChange={handleCellFocusChange}
+              onRowDelete={handleDeleteRow}
             />
           </div>
         )}

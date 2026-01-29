@@ -91,4 +91,30 @@ router.post('/prune', async (req, res) => {
   }
 });
 
+// 🗑️ DELETE Endpoint: Handle requests from Dashboard
+// Matches DELETE /api/rows/:id
+router.delete('/rows/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // 1. Validation
+    if (!id) return res.status(400).json({ error: "Missing ID" });
+
+    console.log(`🗑️ Dashboard requested delete for: ${id}`);
+
+    // 2. Delete from Database
+    const result = await sequelize.query(
+      `DELETE FROM ${TABLE_NAME} WHERE superjoin_id = :id`,
+      { replacements: { id } }
+    );
+
+    // 3. Success Response
+    res.json({ success: true, message: "Row deleted" });
+
+  } catch (error) {
+    console.error("Delete Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
