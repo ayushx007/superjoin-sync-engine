@@ -11,37 +11,40 @@ let lastSyncTime = new Date();
 
 const pollDatabase = async () => {
   try {
-    // 🛠️ THE FIX: Create a 5-second overlap buffer
-    // This catches rows that fell into the "millisecond gap"
+    // 1. SAFETY BUFFER (Existing Logic)
     const safetyBuffer = new Date(lastSyncTime.getTime() - 5000); 
 
-    const query = `SELECT * FROM ${TABLE_NAME} WHERE updatedAt > :lastTime`;
-    
-    const updates = await sequelize.query(query, {
-      replacements: { lastTime: safetyBuffer }, // 👈 Use buffer here
-      type: sequelize.QueryTypes.SELECT
-    });
+    // 2. FETCH UPDATES (Standard Sync)
+    const updates = await sequelize.query(
+      `SELECT * FROM ${TABLE_NAME} WHERE updatedAt > :lastTime`, 
+      { replacements: { lastTime: safetyBuffer }, type: sequelize.QueryTypes.SELECT }
+    );
 
-    if (updates.length > 0) {
-      console.log(`Changes detected: ${updates.length} rows.`);
-      
-      const response = await axios.post(GOOGLE_SCRIPT_URL, { updates }, {
-        headers: { 'Content-Type': 'application/json' },
-        maxRedirects: 5
+    // 3. FETCH HEARTBEAT (The New Deletion Logic) 💓
+    // Get a list of ALL valid IDs currently in the DB
+    const allRows = await sequelize.query(
+      `SELECT superjoin_id FROM ${TABLE_NAME}`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    const validIds = allRows.map(r => r.superjoin_id);
+
+    // 4. SEND TO SHEET (If there are updates OR just to validate existence)
+    // We send this even if updates.length is 0, so deletions reflect immediately
+    // To save bandwidth, you could only send if validIds.length != lastKnownCount
+    // But for this assignment, sending it every cycle is safer.
+    
+    if (updates.length > 0 || validIds.length > 0) { 
+      const response = await axios.post(GOOGLE_SCRIPT_URL, { 
+        updates: updates,
+        valid_ids: validIds // 👈 Sending the "Death Note" list
       });
       
-      console.log('📬 Google Response:', typeof response.data === 'object' ? JSON.stringify(response.data) : response.data);
-      
-      // Update lastSyncTime to NOW (after successful sync)
+      console.log(`📤 Synced: ${updates.length} updates. Validated ${validIds.length} active rows.`);
       lastSyncTime = new Date();
     }
+
   } catch (error) {
-    if (error.response) {
-      console.error('❌ Google Error Status:', error.response.status);
-      console.error('❌ Google Error Body:', error.response.data);
-    } else {
-      console.error('⚠️ Polling Error:', error.message);
-    }
+    console.error('⚠️ Polling Error:', error.message);
   }
 };
 
