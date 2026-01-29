@@ -11,29 +11,32 @@ let lastSyncTime = new Date();
 
 const pollDatabase = async () => {
   try {
+    // 🛠️ THE FIX: Create a 5-second overlap buffer
+    // This catches rows that fell into the "millisecond gap"
+    const safetyBuffer = new Date(lastSyncTime.getTime() - 5000); 
+
     const query = `SELECT * FROM ${TABLE_NAME} WHERE updatedAt > :lastTime`;
+    
     const updates = await sequelize.query(query, {
-      replacements: { lastTime: lastSyncTime },
+      replacements: { lastTime: safetyBuffer }, // 👈 Use buffer here
       type: sequelize.QueryTypes.SELECT
     });
 
     if (updates.length > 0) {
       console.log(`Changes detected: ${updates.length} rows.`);
       
-      // 🕵️‍♂️ DEBUGGING THE RESPONSE
       const response = await axios.post(GOOGLE_SCRIPT_URL, { updates }, {
         headers: { 'Content-Type': 'application/json' },
         maxRedirects: 5
       });
       
-      // 🔴 THIS LOG WILL REVEAL THE TRUTH
       console.log('📬 Google Response:', typeof response.data === 'object' ? JSON.stringify(response.data) : response.data);
       
+      // Update lastSyncTime to NOW (after successful sync)
       lastSyncTime = new Date();
     }
   } catch (error) {
     if (error.response) {
-      // Log the full HTML if Google sends an error page
       console.error('❌ Google Error Status:', error.response.status);
       console.error('❌ Google Error Body:', error.response.data);
     } else {
